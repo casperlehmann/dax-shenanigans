@@ -63,4 +63,5 @@ VAR RESULT = IF(
     SUMX(SPLIT_PLUS; [Result]);
     "Not supported"
 )
-RETURN RESULT```
+RETURN RESULT
+```
