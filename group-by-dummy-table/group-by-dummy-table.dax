@@ -1,0 +1,41 @@
+/*
+Requirements:
+Existing Revenue measure,
+Dummy table to display numbers: Numbers[Index: Text, Index int: Number]
+Item table with Item No. and First Sales Date.
+Calendar table.
+*/
+
+Revenue per week = 
+VAR firstsalesdate = CALCULATE(MIN('Items'[First Sales Date]), ALL(Calender))
+VAR filteredcalendar = FILTER( // Filter is an iterator; returns a table. N.B. Filter works optimally when only filtering one column.
+    Calender,
+    (WEEKDAY(Calender[Date]) = WEEKDAY(firstsalesdate))
+    && (firstsalesdate <= Calender[Date])
+)
+VAR rankedfilteredcalendar = SUMMARIZE( // In-momory summarization table.
+    filteredcalendar, // Source table is our filtered calendar
+    [Date], // Select the Date as a base column
+    "WeekIndex", // Create new column to holde the rank
+        RANKX ( filteredcalendar, Calender[Date],,ASC),
+    "Rev", // Evaluate the revenue measure with an expanded date scope.
+        VAR weekrank = RANKX ( filteredcalendar, Calender[Date],,ASC)
+        RETURN
+        CALCULATE(
+            [Revenue], // Existing revenue measure
+            DATESINPERIOD(
+                Calender[Date], // First parameter is our entire unfiltered date table.
+                [Date], // Second parameter is the Date field of our current row context.
+                1, DAY // Expand date scope with a week. N.B. 1 == no expand, 0 == empty set, 7 == seven days. Negative numbers behave the same.
+            ) 
+        )
+)
+VAR iter = SUMX( // Iterate through the dummy table, matching to it the rank we created with RANKX.
+    VALUES(Numbers[Index int]),
+    SUMX(
+        FILTER(rankedfilteredcalendar, [WeekIndex] = Numbers[Index int]), // This allows the dummy table to filter this measure with no explicit table relation
+        [Rev] // N.B. This is not a measure but a column in the virtual table. SUMX serves to sum this.
+    )
+)
+RETURN
+IF(HASONEVALUE('Items'[Item No.]), iter)
